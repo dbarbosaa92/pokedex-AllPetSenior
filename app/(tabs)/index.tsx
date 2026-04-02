@@ -1,98 +1,361 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { COLORS } from "../../constants/theme";
+import api from "../services/api";
 
-export default function HomeScreen() {
+type Pokemon = {
+  id: number;
+  name: string;
+  sprites?: {
+    other?: {
+      "official-artwork"?: {
+        front_default?: string | null;
+      };
+    };
+  };
+  types?: {
+    type: {
+      name: keyof typeof COLORS.types;
+    };
+  }[];
+};
+
+export default function Home() {
+  const [pokemons, setPokemons] = useState<Pokemon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [showShinyModal, setShowShinyModal] = useState(false);
+  const [selectedPokemon, setSelectedPokemon] = useState<Pokemon | null>(null);
+
+  //clicar no card
+  const handlePokemonClick = (pokemon: Pokemon) => {
+    setSelectedPokemon(pokemon);
+    setShowShinyModal(true);
+  };
+
+  //fechar
+  const handleCloseModal = () => {
+    setShowShinyModal(false);
+    setSelectedPokemon(null);
+  };
+
+  useEffect(() => {
+    async function getPokemons() {
+      try {
+        const response = await api.get("pokemon?limit=151");
+
+        const payload = await Promise.all(
+          response.data.results.map(async (item: { url: string }) => {
+            const detail = await api.get(item.url);
+            return detail.data as Pokemon;
+          }),
+        );
+
+        setPokemons(payload);
+      } catch (error) {
+        console.error("Erro na API:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    getPokemons();
+  }, []);
+
+  const filteredPokemons = pokemons.filter((pokemon) => {
+    const searchTerm = search.toLowerCase();
+    return (
+      pokemon.name.toLowerCase().includes(searchTerm) ||
+      String(pokemon.id).includes(searchTerm)
+    );
+  });
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setSearch("");
+
+    try {
+      const response = await api.get("pokemon?limit=151");
+      const payload = await Promise.all(
+        response.data.results.map(async (item: { url: string }) => {
+          const detail = await api.get(item.url);
+          return detail.data as Pokemon;
+        }),
+      );
+      setPokemons(payload);
+    } catch (error) {
+      console.error("Erro ao atualizar:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.white} />
+        <Text style={styles.loadingText}>Carregando Pokedex...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      <Text style={styles.title}>Pokedex</Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Barra de pesquisa */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Pesquisar por nome ou número..."
+        placeholderTextColor="#888"
+        value={search}
+        onChangeText={setSearch}
+      />
+
+      <FlatList
+        data={filteredPokemons}
+        keyExtractor={(item) => String(item.id)}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        renderItem={({ item }) => {
+          const mainType = item.types?.[0]?.type?.name ?? "normal";
+          const cardColor = COLORS.types[mainType] ?? COLORS.types.normal;
+
+          return (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardColor }]}
+              onPress={() => handlePokemonClick(item)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.id}>#{String(item.id).padStart(3, "0")}</Text>
+
+              <Image
+                source={{
+                  uri:
+                    item.sprites?.other?.["official-artwork"]?.front_default ??
+                    undefined,
+                }}
+                style={styles.pokemonImage}
+              />
+
+              <Text style={styles.pokemonName}>{item.name}</Text>
+
+              <View style={styles.typesContainer}>
+                {item.types?.map((typeItem) => (
+                  <View key={typeItem.type.name} style={styles.typeBadge}>
+                    <Text style={styles.typeText}>{typeItem.type.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
+      {/* --- MODAL SHINY --- */}
+      <Modal
+        visible={showShinyModal}
+        transparent={true} // Fundo transparente
+        animationType="fade" // Animação suave
+        onRequestClose={handleCloseModal} // Para o botão 'Voltar' do Android
+      >
+        {/* Pressable ocupa a tela toda para fechar ao clicar fora */}
+        <Pressable style={styles.modalOverlay} onPress={handleCloseModal}>
+          <View style={styles.modalContent}>
+            {selectedPokemon && (
+              <>
+                <Text style={styles.modalTitle}>Versão Shiny!</Text>
+
+                {/* Imagem Shiny */}
+                <Image
+                  source={{
+                    // Caminho para a sprite Shiny na PokéAPI
+                    uri:
+                      selectedPokemon.sprites?.other?.["official-artwork"]
+                        ?.front_shiny ?? undefined,
+                  }}
+                  style={styles.shinyImage}
+                />
+
+                <Text style={styles.modalPokemonName}>
+                  {selectedPokemon.name} ✨
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCloseModal}
+                >
+                  <Text style={styles.closeButtonText}>Fechar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FF0000",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  loadingText: {
+    color: COLORS.white,
+    fontSize: 18,
+    marginTop: 10,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingTop: 50,
+    paddingHorizontal: 10,
+  },
+  listContent: {
+    paddingBottom: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    marginBottom: 20,
+    marginLeft: 10,
+  },
+  row: {
+    justifyContent: "space-between",
+  },
+  id: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    fontSize: 12,
+    color: "rgba(0, 0, 0, 0.45)",
+    fontWeight: "bold",
+  },
+  card: {
+    padding: 10,
+    borderRadius: 20,
+    marginBottom: 15,
+    width: "47%",
+    aspectRatio: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  pokemonName: {
+    fontSize: 16,
+    textTransform: "capitalize",
+    fontWeight: "bold",
+    marginTop: 5,
+    color: COLORS.white,
+  },
+  pokemonImage: {
+    width: "70%",
+    height: "50%",
+    resizeMode: "contain",
+  },
+  typesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: 8,
+    gap: 5,
+  },
+  typeBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.24)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  typeText: {
+    fontSize: 10,
+    textTransform: "capitalize",
+    fontWeight: "bold",
+    color: COLORS.white,
+  },
+  searchBar: {
+    backgroundColor: "#FFF",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginBottom: 20,
+    fontSize: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginHorizontal: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)", // Fundo escuro semi-transparente
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "80%",
+    backgroundColor: "#FFF",
+    borderRadius: 25,
+    padding: 20,
+    alignItems: "center",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#444",
+    marginBottom: 10,
+  },
+  shinyImage: {
+    width: 200,
+    height: 200,
+    resizeMode: "contain",
+  },
+  modalPokemonName: {
+    fontSize: 18,
+    textTransform: "capitalize",
+    fontWeight: "600",
+    marginTop: 10,
+    marginBottom: 20,
+    color: "#555",
+  },
+  closeButton: {
+    backgroundColor: COLORS.types.fire, // Usa a cor de fogo como padrão
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  closeButtonText: {
+    color: "#FFF",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });
