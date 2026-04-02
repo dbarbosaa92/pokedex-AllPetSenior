@@ -1,3 +1,4 @@
+//Dessa vez foi mais complicado 😅
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,8 @@ import {
 import { COLORS } from "../../constants/theme";
 import api from "../services/api";
 
+// Aqui o código vai pegar apenas os dados importantes que ele precisa
+//id, nome, foto do pokemon e tipos
 type Pokemon = {
   id: number;
   name: string;
@@ -40,18 +43,19 @@ export default function Home() {
   const [showShinyModal, setShowShinyModal] = useState(false);
   const [selectedPokemon, setSelectedPokemon] = useState<Pokemon | null>(null);
 
-  //clicar no card
+  //funçao que dispara ao clicar no card
   const handlePokemonClick = (pokemon: Pokemon) => {
     setSelectedPokemon(pokemon);
     setShowShinyModal(true);
   };
 
-  //fechar
+  //funcao para fechar o card
   const handleCloseModal = () => {
     setShowShinyModal(false);
     setSelectedPokemon(null);
   };
 
+  //Chamada na API e retorno dos pokemons em tela
   useEffect(() => {
     async function getPokemons() {
       try {
@@ -75,6 +79,7 @@ export default function Home() {
     getPokemons();
   }, []);
 
+  //Variavel para guardar os pokemons filtrados pela barra de pesquisa
   const filteredPokemons = pokemons.filter((pokemon) => {
     const searchTerm = search.toLowerCase();
     return (
@@ -83,6 +88,7 @@ export default function Home() {
     );
   });
 
+  //Funçao de refresh que reinicia a barra de pesquisa
   const onRefresh = async () => {
     setRefreshing(true);
     setSearch("");
@@ -103,6 +109,7 @@ export default function Home() {
     }
   };
 
+  //Tela de carregamento enquanto a API ainda nao retorna as requisições
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -112,6 +119,7 @@ export default function Home() {
     );
   }
 
+  //Corpo geral da pagina
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Pokedex</Text>
@@ -125,6 +133,7 @@ export default function Home() {
         onChangeText={setSearch}
       />
 
+      {/* Flatlist com cada pokemon e suas particularidades */}
       <FlatList
         data={filteredPokemons}
         keyExtractor={(item) => String(item.id)}
@@ -139,6 +148,9 @@ export default function Home() {
           const cardColor = COLORS.types[mainType] ?? COLORS.types.normal;
 
           return (
+            //Montagem das cards
+
+            //Gatilho para quando clicar na card
             <TouchableOpacity
               style={[styles.card, { backgroundColor: cardColor }]}
               onPress={() => handlePokemonClick(item)}
@@ -169,14 +181,13 @@ export default function Home() {
         }}
       />
 
-      {/* --- MODAL SHINY --- */}
+      {/* Modal para que apareça a versão shiny do pokemon na tela */}
       <Modal
         visible={showShinyModal}
-        transparent={true} // Fundo transparente
-        animationType="fade" // Animação suave
-        onRequestClose={handleCloseModal} // Para o botão 'Voltar' do Android
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseModal}
       >
-        {/* Pressable ocupa a tela toda para fechar ao clicar fora */}
         <Pressable style={styles.modalOverlay} onPress={handleCloseModal}>
           <View style={styles.modalContent}>
             {selectedPokemon && (
@@ -213,6 +224,7 @@ export default function Home() {
   );
 }
 
+// estilos do app
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -312,7 +324,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)", // Fundo escuro semi-transparente
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -348,7 +360,7 @@ const styles = StyleSheet.create({
     color: "#555",
   },
   closeButton: {
-    backgroundColor: COLORS.types.fire, // Usa a cor de fogo como padrão
+    backgroundColor: COLORS.types.fire,
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 20,
